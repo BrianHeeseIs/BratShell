@@ -168,25 +168,31 @@ class IgorShell {
     private function editLog( $fd = null ) {
         // TODO: implement me.
         $this->m_TimeEnd = time();
-        $timeStart = date('M  d H:i:s', $this->m_TimeStart);
+        $timeStart = date('M  d', $this->m_TimeStart);
 
         $logFileName = ''; // Filename?
-        $fh = fopen($fh, 'r+');
+        $fh = @fopen($fh, 'r+');
         if(!$fh){
             return false;
         }
         $logResult = '';
-        while(($line = fgets($fh) !== false)){
+        while(($line = fgets($fh)) !== false){
             if(feof($fh)){
                 return false;
             }
-            // if(preg_match('/^([A-Za-z]{1,3}(\s|\t)+[0-9]{1,2}(\t|\s)+[0-9\:]{0,3}+)(.?*)$/', $line, $matches)){
-                if(false !== substr($line, 0)){
+            if(preg_match('/^([A-Za-z]{1,3}(\s|\t)+[0-9]{1,2}(\t|\s)+[0-9\:]{0,3}+)(.?*)$/', $line, $matches)){
+                $dateTime = $matches[1];
+
+                // Added in the strtolower just for extra checks - Want to be safe if we are editing logs
+                if(strtolower($dateTime) == strtolower(substr($line, 0, (strlen($dateTime)-1)))){
                     $line = '';
                 }
-            // }
+            }
             $logResult .= $line;
         }
+        @fwrite($fh, $logResult);
+        @fclose($fh);
+        return;
     }
 
     /**
