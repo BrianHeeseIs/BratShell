@@ -81,7 +81,10 @@ class IgorShell {
 		    // fd mode
 		    $tmpArr['mode']		= $details['mode'];
 
-		    // Save
+            // retrieve filepath
+            $tmpArr['filepath'] = readlink('/proc/'.$this->m_Pid.'/fd/'.$f->getFilename());
+
+            // Save
 		    $this->m_FileDescriptors[ $f->getFilename() ] = $tmpArr;
 		}	
 	}
