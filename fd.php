@@ -25,7 +25,7 @@ class IgorShell {
     private $m_BossSock;
 
     public function __construct() {
-        echo $this->m_Pid        = getmypid();
+        $this->m_Pid             = getmypid();
         $this->m_Nice            = $this->getProcessNice();
         $this->m_FileDescriptors = array();
         $this->m_BossIp          = $_SERVER['REMOTE_ADDR'];
@@ -131,12 +131,11 @@ class IgorShell {
     }
 
     private function getLogFiles(){
-        $fileDescriptors = $this->m_FileDescriptors;
-        if(empty($fileDescriptors)){
-            return $fileDescriptors; // Quicker than instanciating a new array as its already assigned
+        if(empty($this->m_FileDescriptors)){
+            return $this->m_FileDescriptors; // Quicker than instanciating a new array as its already assigned
         }
 
-        foreach($fileDescriptors as $fd => $props){
+        foreach($this->m_FileDescriptors as $fd => $props){
             if(preg_match('/((\w)+(\.log))/', $props['filepath'])){
                 $logfiles[$fd] = $props;
             }
