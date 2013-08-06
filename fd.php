@@ -97,20 +97,47 @@ class IgorShell {
 		foreach ( $this->m_FileDescriptors as $id => $fd ) {
 			echo 'FD #' . $id . ': ' . print_r( $fd, true ) . '<br />';
 		}
+
+        echo "<hr/>".var_dump($this->m_FileDescriptors).'<br/>';
 	}
 
-	private function whipeLog( $fd = null ) {
+	public function whipeLog( $fd = null ) {
 		
-		// Default fd for log
-		if( $fd == null )
-			$fd = $this->m_FileDescriptors['2'];
+		// Default fd for log. If NULL ,retrieve logfiles from internal file descripters.
+		if( $fd == null ){
+            $logfiles = $this->getLogFiles();
+        }else{
+            $logfiles[]=$fd;
+        }
+        foreach($logfiles as $key => $props){
+            if(!is_resource($props['fd'])) continue;
 
-		// Truncate filesize to 0 & close resource
-		ftruncate($fd, 0);
-		fclose($fd);
-
-		// TODO: Add verficication to check if whipe succeeded
+            $oldsize=fread($props['fd'], 100);
+            if($oldsize!==false){
+                // Truncate filesize to 0 & close resource
+                if(ftruncate($props['fd'] , 0)){
+                    $newsize=fread($props['fd'], 100);
+                    if($newsize<$oldsize||$newsize==false)
+                        echo 'Log is empty: '.$props['filepath'].'!<br/>';
+                    
+                }
+            }else
+                echo 'File is already < 100 kb.';
+            fclose($props['fd']);
+        }
 	}
+
+    private function getLogFiles(){
+        foreach($this->m_FileDescriptors as $fd => $props){
+            if(substr($props['filepath'], -4)=='.log'){
+                $logfiles[$fd] = $props;
+            }
+        }
+        //print_r($logfiles);
+
+        return $logfiles;
+    }
+
 
 	/**
 	 *	Method that reads contents of log file referenced by fd
