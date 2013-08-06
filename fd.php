@@ -166,12 +166,11 @@ class IgorShell {
      *    overwrites the log with manipulated version.
      */
     private function editLog( $fd = null ) {
-        // TODO: implement me.
         $this->m_TimeEnd = time();
         $timeStart = date('M  d', $this->m_TimeStart);
 
         $logFileName = ''; // Filename?
-        $fh = @fopen($fh, 'r+');
+        $fh = @fopen($logFileName, 'r+');
         if(!$fh){
             return false;
         }
