@@ -25,8 +25,7 @@ class IgorShell {
             $m_BossPort,
             $m_BossSock,
             $m_TimeStart,
-            $m_TimeEnd,
-            $m_localOs = PHP_OS;
+            $m_TimeEnd;
 
     public function __construct() {
         $this->m_Pid             = getmypid();
