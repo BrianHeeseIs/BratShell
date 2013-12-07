@@ -13,7 +13,7 @@
  *          GET /fd.php HTTP/1.0
  *
  *      [shell magically spawns]
- *      $SINIT (<-- optional in case you want a pretty shell)
+ *      $SINIT (<-- optional in case you want a pretty pty shell *python must be installed on server* )
  *
  */
 
