@@ -17,6 +17,9 @@
  *
  */
 
+// Kill xdebug if available
+if(function_exists('xdebug_disable')) { xdebug_disable(); }
+
 // Disable timing out as we wish to facilitate a stateful shell session.
 set_time_limit(0);
 
@@ -81,31 +84,92 @@ class BratShell
     {
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
        
-        foreach($it as $f) 
-        {
-            $tmpArr = array();
+        switch(true) {
+        case stristr(PHP_OS, 'DAR'):
+            $pid    = $this->m_Pid;
+            $x      = `lsof -p $pid`;
+            $r      = preg_split('/\s+/', $x);
+            
+            if ($r) 
+            {
+                $n  = 0;
+                $c  = count($r);
+                $a  = $d = array();
+                
+                for ($i = 0 ; $i < 9 ; ++$i) 
+                {
+                    $a[] = $r[$n++];
+                }
 
-            // Create resource from fd
-            $tmpArr['fd']    = $fd = fopen("php://fd/" . $f->getFilename(), 'r+');
+                while($n < $c) 
+                {
+                    $t = array();
+                    for ($i = 0 ; $i < 9 ; ++$i) 
+                    {
+                        $t[$a[$i]] = @$r[$n++];
+                    }
+                    $d[] = $t;
+                }
 
-            // Determine type
-            $details         = stream_get_meta_data($fd);
-            $tmpArr['type']  = $details['stream_type'];
+                $c  = count($d);
+                for ($i = 0 ; $i < $c ; ++$i) 
+                {
+                    list($fd, $mode, $type) = sscanf($d[$i]['FD'], '%d%c%c');
+                    
+                    if ($fd) 
+                    {
+                        $t = array();
+                        $t['fd'] = $fd = fopen('php://fd/' . $fd, $mode);
+                        
+                        if ($fd) 
+                        {
+                            $details        = stream_get_meta_data($fd);
+                            $t['type']      = $details['stream_type'];
+                            $t['state']     = $details['blocked'];
+                            $t['uri']       = $details['uri'];
+                            $t['mode']      = $details['mode'];
+                            $t['filepath']  = $d[$i]['NAME'];
+                            $this->m_FileDescriptors[$fd] = $t;
+                        } 
+                        else 
+                        {
+                            echo 'Fuck...' . "\n";
+                        }
+                    }
+                }
+            } 
+            else 
+            {
+                die('Fuck me');
+            }
+            break;
+        default:
+            foreach($it as $f) 
+            {
+                $tmpArr = array();
 
-            // Determine Blocked / Non-Blocked state
-            $tmpArr['state'] = $details['blocked'];
+                // Create resource from fd
+                $tmpArr['fd']       = $fd = fopen("php://fd/" . $f->getFilename(), 'r+');
 
-            // Determine uri
-            $tmpArr['uri']   = $details['uri'];
+                // Determine type
+                $details            = stream_get_meta_data($fd);
+                $tmpArr['type']     = $details['stream_type'];
 
-            // Fd mode
-            $tmpArr['mode']  = $details['mode'];
+                // Determine Blocked / Non-Blocked state
+                $tmpArr['state']    = $details['blocked'];
 
-            // retrieve filepath
-            $tmpArr['filepath'] = readlink('/proc/self/fd/' . $f->getFilename());
+                // Determine uri
+                $tmpArr['uri']      = $details['uri'];
 
-            // Save
-            $this->m_FileDescriptors[ $f->getFilename() ] = $tmpArr;
+                // Fd mode
+                $tmpArr['mode']     = $details['mode'];
+
+                // retrieve filepath
+                $tmpArr['filepath'] = readlink('/proc/self/fd/' . $f->getFilename());
+
+                // Save
+                $this->m_FileDescriptors[ $f->getFilename() ] = $tmpArr;
+            }
         }
     }
 
