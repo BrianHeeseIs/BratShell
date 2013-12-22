@@ -11,6 +11,8 @@ Date: 05-08-2013
 
 Dependencies: PHP >= 5.3.6 - 5.3.14, PHP >= 5.4.0 - 5.4.4
 
+Inspired by: PentestMonkey's earlier work on the subject http://pentestmonkey.net/tools/web-shells/php-findsock-shell
+
     USAGE: 
     1: upload to apache server running php >= 5.3.6
     2: nc -v [target hostname] 80
@@ -21,5 +23,7 @@ Dependencies: PHP >= 5.3.6 - 5.3.14, PHP >= 5.4.0 - 5.4.4
 
 How it works
 ==========
+
 TODO: Fill this in
 
+Please see PentestMonkey's post and the BratShell source for now whilst I document the inner workings of BratShell.
