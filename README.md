@@ -27,3 +27,7 @@ How it works
 TODO: Fill this in
 
 Please see PentestMonkey's post and the BratShell source for now whilst I document the inner workings of BratShell.
+
+Screenshot
+==========
+![ScreenShot](http://i.imgur.com/yUzp9tS.png)
