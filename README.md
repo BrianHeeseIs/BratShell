@@ -3,6 +3,8 @@ BratShell v0.1 Alpha
 
 PHP shell that hijacks the the incoming socket connection to provide an interactive shell session on port 80
 
+Capabilities: Spawn stateful (pty) shell on port 80, read/modify/whipe apache access log, terminal colors support.
+
 Author: Brian Heese
 
 Contributors: Jeroen van Rijn, Richard Clifford, Marlon Etheredge
